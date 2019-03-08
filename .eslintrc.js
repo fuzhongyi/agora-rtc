@@ -17,6 +17,8 @@ module.exports = {
   rules: {
     'no-console': 0,
     'prefer-const': 0,
-    'vue/html-closing-bracket-spacing': 0
+    'vue/html-closing-bracket-spacing': 0,
+    'vue/singleline-html-element-content-newline': 0,
+    'vue/html-closing-bracket-newline': 0
   }
 }
