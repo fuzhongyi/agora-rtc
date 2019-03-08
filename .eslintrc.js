@@ -16,6 +16,7 @@ module.exports = {
   // add your custom rules here
   rules: {
     'no-console': 0,
-    'prefer-const': 0
+    'prefer-const': 0,
+    'vue/html-closing-bracket-spacing': 0
   }
 }
