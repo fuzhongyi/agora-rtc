@@ -36,16 +36,17 @@ export default {
   top: 0 !important;
 }
 .message {
-  padding: 3px 10px 5px;
+  padding: 3px 8px;
   position: fixed;
-  top: 40px;
+  top: 30px;
   left: 50%;
+  font-size: 14px;
   transform: translateX(-50%);
   border-radius: 4px;
   text-align: center;
   z-index: 1000;
   color: #fff;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.8);
   box-shadow: 0 0 3px rgba(0, 0, 0, 0.3);
 }
 </style>
