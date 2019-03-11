@@ -1,8 +1,15 @@
+import path from 'path'
+import fs from 'fs'
+
 module.exports = {
   mode: 'spa',
 
   server: {
-    host: '0.0.0.0'
+    host: '0.0.0.0',
+    https: {
+      key: fs.readFileSync(path.resolve(__dirname, 'ssl/server.key')),
+      cert: fs.readFileSync(path.resolve(__dirname, 'ssl/server.crt'))
+    }
   },
 
   /*
