@@ -36,11 +36,14 @@ export default {
   top: 0 !important;
 }
 .message {
-  padding: 3px 8px;
+  padding: 5px 8px;
   position: fixed;
   top: 30px;
   left: 50%;
+  max-width: 80vw;
   font-size: 14px;
+  line-height: 1.5;
+  word-wrap: break-word;
   transform: translateX(-50%);
   border-radius: 4px;
   text-align: center;
