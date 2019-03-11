@@ -1,7 +1,7 @@
 {
   "name": "chat",
   "version": "1.0.0",
-  "description": "My first-class Nuxt.js project",
+  "description": "real time chat",
   "author": "fuzhongyi",
   "private": true,
   "scripts": {
