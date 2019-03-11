@@ -12,6 +12,10 @@ module.exports = {
     }
   },
 
+  router: {
+    base: process.env.DEPLOY_ENV === 'GH_PAGES' ? '/chat/' : ''
+  },
+
   /*
   ** Headers of the page
   */
