@@ -26,13 +26,20 @@ module.exports = {
         content: '强撸灰飞烟灭开黑群聊'
       }
     ],
-    link: [{ rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }]
+    link: [
+      { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+      {
+        rel: 'stylesheet',
+        type: 'text/css',
+        href: 'https://fonts.googleapis.com/css?family=ZCOOL+KuaiLe'
+      }
+    ]
   },
 
   /*
   ** Customize the progress-bar color
   */
-  loading: { color: '#1abc9c' },
+  loading: { color: '#00ff7e', height: '3px' },
 
   loadingIndicator: {
     name: 'folding-cube',
