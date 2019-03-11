@@ -48,7 +48,7 @@
         </p>
         <div
           v-show="item.speaking"
-          class="speaking"
+          class="status speaking"
         >
           <svg
             style="vertical-align: top;fill: currentColor;overflow: hidden;"
@@ -63,7 +63,7 @@
 
         <div
           v-show="item.mute"
-          class="mute"
+          class="status mute"
         >
           <svg
             style="vertical-align: top;fill: currentColor;overflow: hidden;"
@@ -148,22 +148,29 @@
 import AgoraRTC from 'agora-rtc-sdk'
 import { formatSeconds } from '~/utils'
 
+// 应用ID
 const APP_ID = '8d551adee0e04eed92aa078f7da226ec'
+// 默认房间
+const ROOM = 'qlhfym'
+// 创建客户端
 const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'h264' })
-const START_TIME = +new Date()
+// 本地流
 let localStream = {}
 
 /**
  * 用户
  * @param uid 编号
+ * @param stream 流
  * @param mute 静音 {0:'静音',1:'未静音'}
  * @param speaking 正在说话 {0:'未说话',1:'正在说话'}
  * @constructor
  */
-function User(uid, mute = 0, speaking = 0) {
+function User(uid, stream, mute = 0, speaking = 0) {
   this.uid = uid
+  this.stream = stream
   this.mute = mute
   this.speaking = speaking
+  // 随机颜色
   this.color = `#${Math.floor(Math.random() * 0xffffff).toString(16)}`
 }
 
@@ -176,33 +183,72 @@ export default {
       voice: true,
       // 静音
       mute: false,
+      // 连接成功时间
+      startTime: 0,
       // 当前时间
-      currentTime: START_TIME
+      currentTime: 0,
+      // 连接时间定时器
+      timer: null
     }
   },
   computed: {
     connectTime() {
-      return formatSeconds((this.currentTime - START_TIME) / 1000)
+      return formatSeconds((this.currentTime - this.startTime) / 1000)
+    }
+  },
+  watch: {
+    users(v) {
+      if (v.length > 17) {
+        this.$message('😭房间人数已达到上限，即将退出...')
+        setTimeout(
+          () => (window.location.href = 'https://github.com/fuzhongyi'),
+          1500
+        )
+      }
     }
   },
   mounted() {
-    this.init()
-    this.intervalConnectTime()
+    this.$nextTick(() => this.init())
   },
   methods: {
     async init() {
-      await this.clientInit()
-      let uid = await this.clientJoin()
-      this.users.push(new User(uid))
-      await this.localStreamInit(uid)
-      this.streamAdded()
-      this.peerLeave()
+      // 显示顶部进度条
+      this.$nuxt.$loading.start()
+      try {
+        // 客户端初始化
+        await this.clientInit()
+        // 加入频道
+        let uid = await this.clientJoin()
+        // 本地流初始化，发布本地流
+        await this.localStreamInit(uid)
+        // 连接成功，计算连接时间
+        this.intervalConnectTime()
+        // 添加当前用户到聊天列表
+        this.users.push(new User(uid, localStream))
+        // 关闭顶部进度条
+        this.$nuxt.$loading.finish()
+        // 远程流加入监听
+        this.streamAddedListener()
+        // 音频禁用监听
+        this.muteAudioListener()
+        // 说话者音量监听
+        this.volumeListener()
+        // 离开频道监听
+        this.peerLeaveListener()
+      } catch (e) {
+        console.log(e)
+        // 初始化异常，关闭顶部进度条
+        this.$nuxt.$loading.finish()
+      }
     },
     /**
      * 连接时间
      */
     intervalConnectTime() {
-      setInterval(() => (this.currentTime = +new Date()), 1000)
+      let initTime = +new Date()
+      this.startTime = initTime
+      this.currentTime = initTime
+      this.timer = setInterval(() => (this.currentTime = +new Date()), 1000)
     },
     /**
      * 客户端初始化
@@ -217,7 +263,7 @@ export default {
             resolve()
           },
           err => {
-            this.$message('客户端初始化失败' + err)
+            this.$message(`客户端初始化失败:${JSON.stringify(err)}`)
             reject(err)
           }
         )
@@ -231,14 +277,14 @@ export default {
       return new Promise((resolve, reject) => {
         client.join(
           null,
-          'cctv',
+          ROOM,
           null,
           uid => {
             console.log(`用户${uid}加入频道成功`)
             resolve(uid)
           },
           err => {
-            this.$message('加入频道失败' + err)
+            this.$message(`加入频道失败${JSON.stringify(err)}`)
             reject(err)
           }
         )
@@ -269,7 +315,7 @@ export default {
               })
             },
             err => {
-              this.$message(`本地流初始化失败:${err}`)
+              this.$message(`本地流初始化失败:${JSON.stringify(err)}`)
               reject(err)
             }
           )
@@ -282,13 +328,12 @@ export default {
     /**
      * 远程流加入监听
      */
-    streamAdded() {
+    streamAddedListener() {
       client.on('stream-added', evt => {
         let stream = evt.stream
         let uid = stream.getId()
-        this.users.push(new User(uid))
+        this.users.push(new User(uid, stream))
         console.log(`远程流[${uid}]加入`)
-        this.$message(`用户[${uid}]加入频道`)
         // 订阅成功
         client.on('stream-subscribed', evt => {
           const remoteStream = evt.stream
@@ -297,42 +342,80 @@ export default {
         })
         // 订阅失败
         client.subscribe(stream, err => {
-          this.$message('订阅远程流失败' + err)
+          this.$message(`订阅远程流失败${JSON.stringify(err)}`)
+        })
+      })
+    },
+    /**
+     * 音频监听
+     */
+    muteAudioListener() {
+      client.on('mute-audio', evt => {
+        this.users.find(v => v.uid === evt.uid).mute = true
+      })
+      client.on('unmute-audio', evt => {
+        this.users.find(v => v.uid === evt.uid).mute = false
+      })
+    },
+    /**
+     * 说话者音量监听
+     */
+    volumeListener() {
+      // 每两秒触发 "volume-indicator" 回调
+      client.enableAudioVolumeIndicator()
+      client.on('volume-indicator', evt => {
+        this.users.forEach(v => {
+          let index = evt.attr.findIndex(volume => volume.uid === v.uid)
+          if (index > -1) {
+            v.speaking = true
+          } else {
+            v.speaking = false
+          }
         })
       })
     },
     /**
      * 离开频道监听
      */
-    peerLeave() {
+    peerLeaveListener() {
       client.on('peer-leave', evt => {
         let uid = evt.uid
         let index = this.users.findIndex(v => v.uid === uid)
-        this.users.splice(index, 1)
-        this.$message(`用户[${uid}]离开频道`)
+        if (index > -1) {
+          this.users.splice(index, 1)
+          document.getElementById(`player_${uid}`).remove()
+        }
       })
     },
     /**
      * 离开频道
      */
     level() {
-      client.leave(
-        () => {
-          this.$message('离开频道')
-        },
-        err => {
-          this.$message(`离开频道失败：${err}`)
-        }
-      )
+      return new Promise((resolve, reject) => {
+        client.leave(
+          () => {
+            console.log('离开频道')
+            resolve()
+          },
+          err => {
+            this.$message(`离开频道失败：${JSON.stringify(err)}`)
+            reject(err)
+          }
+        )
+      })
     },
     /**
      * 声音(开启/关闭)
      */
     toggleVoice() {
       if (this.voice) {
+        // 关闭声音
         this.voice = false
+        this.users.forEach(({ stream }) => stream.setAudioVolume(0))
       } else {
+        // 开启声音
         this.voice = true
+        this.users.forEach(({ stream }) => stream.setAudioVolume(100))
       }
     },
     /**
@@ -340,16 +423,36 @@ export default {
      */
     toggleMute() {
       if (this.mute) {
+        // 关闭静音
         this.mute = false
+        // 启用音频轨道
+        if (localStream.unmuteAudio()) {
+          this.users[0].mute = false
+        }
       } else {
+        // 开启静音
         this.mute = true
+        // 禁用音频轨道
+        if (localStream.muteAudio()) {
+          this.users[0].mute = true
+        }
       }
     },
     /**
      * 挂断
      */
     hangUp() {
-      window.close()
+      this.level().then(() => {
+        this.$message('退出房间')
+        // 清除聊天用户
+        this.users = []
+        // 清除连接时间定时器
+        clearInterval(this.timer)
+        setTimeout(
+          () => (window.location.href = 'https://github.com/fuzhongyi'),
+          1500
+        )
+      })
     },
     /**
      * 发布本地流
@@ -357,16 +460,7 @@ export default {
      */
     publish(stream) {
       client.publish(stream, err => {
-        this.$message(`发布本地流错误:${err}`)
-      })
-    },
-    /**
-     * 取消发布本地流
-     * @param stream
-     */
-    unPublish(stream) {
-      client.unpublish(stream, err => {
-        this.$message(`取消发布本地音视频流：${err}`)
+        this.$message(`发布本地流错误:${JSON.stringify(err)}`)
       })
     }
   }
@@ -381,13 +475,13 @@ export default {
   background: linear-gradient(180deg, #1abc9c 20%, #5c677b 80%, #3b4356);
 
   .room-name {
-    font-size: 18px;
+    font-size: 20px;
     color: #fff;
     text-align: center;
   }
 
   .connect-time {
-    margin: 10px 0;
+    margin: 10px 0 20px;
     color: #fff;
     text-align: center;
 
@@ -407,7 +501,7 @@ export default {
     align-items: center;
     justify-content: center;
     flex-wrap: wrap;
-    max-height: calc(100vh - 200px);
+    max-height: calc(100vh - 210px);
     overflow: auto;
 
     &__item {
@@ -432,8 +526,7 @@ export default {
         text-shadow: 1px 1px 1px #5c677b;
       }
 
-      .mute,
-      .speaking {
+      .status {
         position: absolute;
         padding: 3px;
         width: 20px;
@@ -442,15 +535,16 @@ export default {
         right: -10px;
         bottom: 20px;
         color: #fff;
-      }
+        &.mute {
+          padding: 0;
+          background: #ff0000;
+          z-index: 99;
+        }
 
-      .mute {
-        padding: 0;
-        background: #ff0000;
-      }
-
-      .speaking {
-        background: #36b33f;
+        &.speaking {
+          background: #36b33f;
+          z-index: 1;
+        }
       }
     }
   }
@@ -464,9 +558,13 @@ export default {
     max-width: 400px;
     transform: translateX(-50%);
     display: flex;
-    padding: 0 10vw;
+    padding: 0 12vw;
     align-items: center;
     justify-content: space-between;
+    transition: padding 0.3s;
+    @media only screen and (min-width: 500px) {
+      padding: 0;
+    }
 
     .handel-item {
       width: 50px;
