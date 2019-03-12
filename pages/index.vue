@@ -27,7 +27,7 @@
         class="users-list__item"
       >
         <div
-          :style="{color:item.color}"
+          :style="{color: uidToColor(item.uid)}"
           class="avatar"
         >
           <svg
@@ -41,7 +41,7 @@
           </svg>
         </div>
         <p
-          :style="{color:item.color}"
+          :style="{color: uidToColor(item.uid)}"
           class="name"
         >
           {{ item.uid }}
@@ -170,8 +170,6 @@ function User(uid, stream, mute = 0, speaking = 0) {
   this.stream = stream
   this.mute = mute
   this.speaking = speaking
-  // 随机颜色
-  this.color = `#${Math.floor(Math.random() * 0xffffff).toString(16)}`
 }
 
 export default {
@@ -462,6 +460,17 @@ export default {
       client.publish(stream, err => {
         this.$message(`发布本地流错误:${JSON.stringify(err)}`)
       })
+    },
+    /**
+     * uid转颜色
+     *
+     * @param uid
+     * @returns {string}
+     */
+    uidToColor(uid) {
+      return `#${Math.floor(uid * 0xffffff)
+        .toString(16)
+        .substr(0, 6)}`
     }
   }
 }
